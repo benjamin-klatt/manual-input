@@ -1,0 +1,113 @@
+version: 1
+last_camera:
+  backend: any
+  name: USB2.0 HD UVC WebCam
+  id: ''
+  index: 0
+smoothing:
+  position_ms: 120
+  movement_ms: 120
+  curvature_ms: 80
+  gesture_ms: 80
+calibration:
+  right_hand.motion.up:
+    axis:
+    - 0.0
+    - -1.0
+    range_norm: 0.2
+  right_hand.motion.left:
+    axis:
+    - 1.0
+    - 0.0
+    range_norm: 0.2
+  right_hand.pos:
+    quad:
+    - - 0.0
+      - 0.0
+    - - 1.0
+      - 0.0
+    - - 1.0
+      - 1.0
+    - - 0.0
+      - 1.0
+  right_hand.gesture.closed:
+    min: 0.3
+    max: 0.95
+  right_hand.curv.diff.index_minus_middle:
+    min: -0.2
+    max: 0.5
+  right_hand.curv.diff.middle_minus_avg_index_ring:
+    min: -0.2
+    max: 0.5
+  hands.distance:
+    min: 0.1
+    max: 0.8
+bindings:
+- id: move_x
+  actuator: mouse.move.x
+  input: right_hand.motion.left
+  sensitivity: screen.width
+  gate:
+    input: right_hand.gesture.closed
+    op: <
+    trigger_pct: 0.5
+    release_pct: 0.45
+    refractory_ms: 120
+    lost_hand_policy: release
+  lost_hand_policy: zero
+- id: move_y
+  actuator: mouse.move.y
+  input: right_hand.motion.up
+  sensitivity: -screen.height
+  gate:
+    input: right_hand.gesture.closed
+    op: <
+    trigger_pct: 0.5
+    release_pct: 0.45
+    refractory_ms: 120
+    lost_hand_policy: release
+  lost_hand_policy: zero
+- id: left_click
+  actuator: mouse.click.left
+  input: right_hand.curv.index.rel
+  op: '>'
+  trigger_pct: 0.8
+  release_pct: 0.6
+  refractory_ms: 250
+  gate:
+    input: right_hand.gesture.closed
+    op: <
+    trigger_pct: 0.5
+    release_pct: 0.45
+    refractory_ms: 120
+    lost_hand_policy: release
+  lost_hand_policy: release
+- id: right_click
+  actuator:
+    trigger: mouse.click.right.down
+    release: mouse.click.right.up
+  input: right_hand.curv.middle.rel
+  op: '>'
+  trigger_pct: 0.8
+  release_pct: 0.6
+  refractory_ms: 250
+  gate:
+    input: right_hand.gesture.closed
+    op: <
+    trigger_pct: 0.5
+    release_pct: 0.45
+    refractory_ms: 120
+    lost_hand_policy: release
+  lost_hand_policy: release
+- id: scroll_y
+  actuator: mouse.scroll.y
+  input: right_hand.distance.thumb.index
+  sensitivity: -180
+  gate:
+    input: right_hand.gesture.pinch
+    op: '>'
+    trigger_pct: 0.6
+    release_pct: 0.5
+    refractory_ms: 120
+    lost_hand_policy: release
+  lost_hand_policy: zero
