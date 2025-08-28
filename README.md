@@ -26,10 +26,8 @@ python -m venv .venv
 # macOS/Linux:
 source .venv/bin/activate
 
-pip install mediapipe==0.10.* opencv-python pynput pyyaml
+.venv/Scripts/pip install -r requirements.txt
 ```
-
-Place `hand_landmarker.task` **next to** the app (or in `assets/models/`).
 
 **OS notes**
 - **Windows**: works out of the box.
@@ -41,9 +39,7 @@ Place `hand_landmarker.task` **next to** the app (or in `assets/models/`).
 ## Run
 
 ```bash
-python -m manualInput.main  # if using the repo layout below
-# or
-python hand_mouse_pynput_calibrated.py  # if using the single-file version
+.venv/Scripts/python -m src.main  # if using the repo layout below
 ```
 
 Hotkeys in the preview window
@@ -67,6 +63,8 @@ Hotkeys in the preview window
 ---
 
 # Calibration
+
+NOT FINISHED
 
 Press **F9** to step through:
 
