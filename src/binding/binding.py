@@ -168,7 +168,7 @@ class BindingBuilder:
 		gates_cfg = config.get('gate_all')
 		if(not gates_cfg):
 			gate_cfg =config.get('gate')
-			gates_cfg = [gate_cfg]
+			gates_cfg = [gate_cfg] if gate_cfg else []
 		gates = [gate_builder.build(gate_cfg) for gate_cfg in gates_cfg]
 
 		# Parameters for delta/abs

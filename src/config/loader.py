@@ -1,11 +1,21 @@
 
+
 import os, sys, json
 from typing import Dict, Any
 
+# Try ruamel.yaml for comment/format preserving round-trip
 try:
-	import yaml
+	from ruamel.yaml import YAML  # type: ignore
+	_HAS_RUAMEL = True
 except Exception:
-	yaml = None
+	YAML = None  # type: ignore
+	_HAS_RUAMEL = False
+
+# Fallback: PyYAML
+try:
+	import yaml  # type: ignore
+except Exception:
+	yaml = None  # type: ignore
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -66,6 +76,15 @@ def minimal_default_config() -> Dict[str, Any]:
 
 def write_yaml(path: str, data: Dict[str, Any]) -> None:
 	os.makedirs(os.path.dirname(path), exist_ok=True)
+	# If ruamel.yaml is available, use it (preserves comments/formatting on round-tripped data)
+	if _HAS_RUAMEL and YAML is not None:
+		y = YAML()
+		y.preserve_quotes = True
+		y.indent(mapping=2, sequence=2, offset=0)
+		with open(path, "w", encoding="utf-8") as f:
+			y.dump(data, f)
+		return
+	# Fallbacks
 	with open(path, "w", encoding="utf-8") as f:
 		if yaml:
 			yaml.safe_dump(data, f, sort_keys=False)
@@ -79,6 +98,12 @@ def load_yaml(path: str) -> Dict[str, Any]:
 		data = minimal_default_config()
 		write_yaml(path, data)
 		return data
+	# Prefer ruamel round-trip load to retain comments/formatting
+	if _HAS_RUAMEL and YAML is not None:
+		y = YAML()
+		y.preserve_quotes = True
+		with open(path, "r", encoding="utf-8") as f:
+			return y.load(f) or {}
 	with open(path, "r", encoding="utf-8") as f:
 		if yaml:
 			return yaml.safe_load(f) or {}

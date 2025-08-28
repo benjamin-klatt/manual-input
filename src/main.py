@@ -21,6 +21,7 @@ from typing import Dict, Any, Optional, List, Tuple
 import cv2
 import numpy as np
 from src.input.HandState import HandState
+from src.input.smoothing import HandSmootherIndex
 from src.input.tracker import HandTracker
 from src.io.camera import CameraSwitcher
 from src.config import loader as config_loader
@@ -146,6 +147,7 @@ def main():
 
     # Tracker
     tracker = HandTracker(model_path)
+    smoother = HandSmootherIndex(smoothing_time=0.12)
 
 
     # --- Modular pipeline: FeatureIndex, ActuatorBuilder, GateBuilder, BindingIndex ---
@@ -183,7 +185,7 @@ def main():
         ts = int(time.time()*1000)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         hands_list = tracker.detect(rgb, ts)
-        hands_map: Dict[str, HandState] = {h.label: h for h in hands_list}
+        hands_map: Dict[str, HandState] = smoother.smoothe_dict({h.label: h for h in hands_list})
         any_tracked = len(hands_map) > 0
         if any_tracked: last_seen_ms = ts
 

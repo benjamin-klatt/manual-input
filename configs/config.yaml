@@ -9,61 +9,21 @@ calibration:
     axis:
     - 0.0
     - -1.0
-    range_norm: -540
+    range_norm: -200 # this is the right hand motion up calibration
   right_hand.motion.left:
     axis:
     - 1.0
     - 0.0
-    range_norm: -960
+    range_norm: -300 # this is the right hand motion left calibration
   right_hand.pos:
     quad:
-    - - 0
-      - 0
-    - - 1
-      - 0
-    - - 1
-      - 1
-    - - 0
-      - 1
+    - [0, 0]
+    - [1, 0]
+    - [1, 1]
+    - [0, 1]
   right_hand.gesture.closed:
     min: 0.5
     max: 1.2
-  right_hand.curv.diff.index_minus_middle:
-    min: -0.2
-    max: 0.5
-  right_hand.curv.diff.middle_minus_avg_index_ring:
-    min: -0.2
-    max: 0.5
-  hands.distance:
-    min: 0.1
-    max: 0.8
-  right_hand.curv.index.rel:
-    min: 0.0
-    max: 3.0
-  right_hand.gesture.pinch:
-    min: 0.0
-    max: 3.0
-  right_hand.curv.index:
-    min: 0.0
-    max: 3.0
-  right_hand.bend.index.rel:
-    min: 0.0
-    max: 1.0
-  right_hand.bend.index:
-    min: 0.0
-    max: 1.0
-  right_hand.dist.thumb.hand:
-    min: 0.015
-    max: 0.045
-  right_hand.curv.thumb:
-    min: 0.5
-    max: 1.0
-  right_hand.dist.hand.thumb:
-    min: 0.0
-    max: 1.0
-  right_hand.rotation:
-    min: 0.0
-    max: 1.0
 bindings:
 - id: move_x
   actuator: mouse.move.x
@@ -72,7 +32,7 @@ bindings:
   deadzone: 0.001
   gate:
     input: right_hand.gesture.closed
-    op: '>'
+    op: '<'
     trigger_pct: 0.5
     release_pct: 0.45
     refractory_ms: 120
@@ -89,31 +49,12 @@ bindings:
   deadzone: 0.001
   gate:
     input: right_hand.gesture.closed
-    op: '>'
+    op: '<'
     trigger_pct: 0.5
     release_pct: 0.45
     refractory_ms: 120
     lost_hand_policy: release
   lost_hand_policy: zero
-  debug:
-  - feature
-  - gate
-  - actuator
-- id: left_click
-  actuator: mouse.click.left
-  input: right_hand.bend.index
-  op: '>'
-  trigger_pct: 0.8
-  release_pct: 0.6
-  refractory_ms: 250
-  gate:
-    input: right_hand.gesture.closed
-    op: <
-    trigger_pct: 0.5
-    release_pct: 0.45
-    refractory_ms: 120
-    lost_hand_policy: release
-  lost_hand_policy: release
   debug:
   - feature
   - gate

@@ -17,3 +17,4 @@ Thumbs.db
 
 # Model assets
 src/assets/models/
+.github/copilot-instructions.md

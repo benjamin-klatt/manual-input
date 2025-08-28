@@ -1,7 +1,6 @@
 # Feature extraction framework for hand tracking
 from typing import Optional, Dict, Any
 from src.input.HandState import HandState
-from src.input.tracker import HandTracker
 import numpy as np
 import math
 import cv2
