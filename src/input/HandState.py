@@ -1,9 +1,13 @@
+from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Tuple
+from typing import Any, List, Tuple
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.input.tracker import MultiLandmark
 
 @dataclass
-class HandState:    
+class HandState:
     WRIST = 0
     THUMB_CMC = 1
     THUMB_MCP = 2
@@ -24,10 +28,9 @@ class HandState:
     PINKY_MCP = 17
     PINKY_PIP = 18
     PINKY_DIP = 19
-    PINKY_TIP = 20
+    PINKY_TIP = 20   
+    PALM_CENTER = 21  # Custom extra landmark for palm center
 
     label: str                     # "Left" or "Right"
-    landmarks: Any
-    world_landmarks: Any
-    palm_center: Tuple[float,float]
+    landmarks: List[MultiLandmark]  # List of 21 landmarks + palm center
     palm_width: float

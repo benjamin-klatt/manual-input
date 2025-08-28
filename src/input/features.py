@@ -3,8 +3,10 @@ from typing import Optional, Dict, Any
 from src.input.HandState import HandState
 from src.input.tracker import HandTracker
 import numpy as np
+import math
 import cv2
 from src.input.geometry import finger_curvature_3d, finger_bend_plane_angle
+from src.ui.debug_overlay import debug_overlay
 
 
 class Feature:
@@ -15,11 +17,8 @@ class Feature:
 		rng = max_v - min_v
 		if abs(rng) < 1e-6:
 			return 0.0
-		# If max < min, flip the scale
-		if rng > 0:
-			return (raw - min_v) / rng
-		else:
-			return (min_v - raw) / (-rng)
+		return (raw - min_v) / rng
+
 	"""
 	Base class for all features. Subclasses must implement getValue.
 	"""
@@ -60,8 +59,8 @@ class PositionFeature(Feature):
 			self._last_value = None
 			self._last_raw_value = None
 			return None
-		pc = np.array(hand.palm_center, dtype=np.float32)
-		v = np.array([pc[0], pc[1], 1.0], dtype=np.float32)
+		pc = hand.landmarks[HandState.PALM_CENTER]
+		v = np.array([pc.x, pc.y, 1.0], dtype=np.float32)
 		w = self.H @ v
 		if w[2] == 0:
 			self._last_value = None
@@ -86,6 +85,8 @@ class MovementFeature(Feature):
 		self.range_norm = float(calibration.get("range_norm", 20))
 		self.prev_palm = None
 		self.prev_hand = None
+		self.min = 0
+		self.max = self.range_norm
 
 	def getValue(self, left_hand: Optional[HandState], right_hand: Optional[HandState]) -> Optional[float]:
 		hand = left_hand if self.hand == 'left' else right_hand
@@ -100,19 +101,19 @@ class MovementFeature(Feature):
 			self._last_value = None
 			self._last_raw_value = None
 			return None
-		pc = np.array(hand.palm_center, dtype=np.float32)
+		pc = hand.landmarks[HandState.PALM_CENTER]
 		if self.prev_palm is None:
-			self.prev_palm = np.copy(pc)
+			self.prev_palm = pc.copy()
 			self._last_value = 0.0
 			self._last_raw_value = 0.0
 			return 0.0  # neutral
 		d = pc - self.prev_palm
-		self.prev_palm[:] = pc
-		proj = float(np.dot(d, self.axis_vec))
-		val = proj / self.range_norm
+		self.prev_palm.assign(pc)
+		val = float(np.dot(d.sArray2(), self.axis_vec))
 		self._last_raw_value = val
+		out = self.normalize_value(val)
 		# Clamp to -1..1 for safety
-		out = max(-1.0, min(1.0, val))
+		out = max(-1.0, min(1.0, out))
 		self._last_value = out
 		return out
 
@@ -261,12 +262,13 @@ class GestureFeature(Feature):
 			mid = HandState.MIDDLE_FINGER_MCP
 			ring = HandState.RING_FINGER_MCP
 			pinky = HandState.PINKY_MCP
-			idx_curv = finger_curvature_3d(lms, idx, idx+1, idx+2, idx+3)
-			mid_curv = finger_curvature_3d(lms, mid, mid+1, mid+2, mid+3)
-			ring_curv = finger_curvature_3d(lms, ring, ring+1, ring+2, ring+3)
-			pinky_curv = finger_curvature_3d(lms, pinky, pinky+1, pinky+2, pinky+3)
+			idx_curv = finger_curvature_3d(lms, [idx, idx+1, idx+2, idx+3])
+			mid_curv = finger_curvature_3d(lms, [mid, mid+1, mid+2, mid+3])
+			ring_curv = finger_curvature_3d(lms, [ring, ring+1, ring+2, ring+3])
+			pinky_curv = finger_curvature_3d(lms, [pinky, pinky+1, pinky+2, pinky+3])
 			curvs = [idx_curv, mid_curv, ring_curv, pinky_curv]
 			avg_curv = sum(curvs) / 4.0
+			self._last_raw_value = avg_curv
 			val = self.normalize_value(avg_curv)
 			self._last_value = val
 			return val
@@ -296,20 +298,168 @@ class DistanceFeature(Feature):
 		lms = hand.landmarks
 		p1 = lms[self.id1]
 		p2 = lms[self.id2]
-		d = np.hypot(p1.x - p2.x, p1.y - p2.y)
-		# Normalize by palm width
-		scale = hand.palm_width
-		val = d / max(1e-6, scale)
+		debug_overlay.addLine(p1, p2)
+		diff = p2 - p1
+		val = math.hypot(diff.wx, diff.wy, diff.wz)
+		# # Normalize by palm width
+		# val /= max(1e-6, hand.palm_width)
 		self._last_raw_value = val
 		out = self.normalize_value(val)
 		self._last_value = out
 		return out
+	
+
+
+class RotationFeature(Feature):
+	"""
+	Measures the rotation of the hand around an axis defined by two landmarks, relative to a reference point.
+	Returns the signed angle (in radians) between the vector from ref to axis1 and the vector from ref to axis2, projected onto the axis.
+	"""
+	def __init__(self, hand: str, ref_id: int, axis1_id: int, axis2_id: int, calibration: Dict[str, Any]):
+		super().__init__(hand, calibration)
+		self.ref_id = ref_id
+		self.axis1_id = axis1_id
+		self.axis2_id = axis2_id
+		self.min = calibration.get("min", -np.pi)
+		self.max = calibration.get("max", np.pi)
+
+	def getValue(self, left_hand: Optional[HandState], right_hand: Optional[HandState]) -> Optional[float]:
+		hand = left_hand if self.hand == 'left' else right_hand
+		if hand is None or not hasattr(hand, "landmarks"):
+			self._last_value = None
+			self._last_raw_value = None
+			return None
+		lms = hand.landmarks
+		ref = lms[self.ref_id]
+		a1 = lms[self.axis1_id]
+		a2 = lms[self.axis2_id]
+		v1 = a1 - ref
+		v2 = a2 - ref
+		# Project onto the plane orthogonal to the axis (a2 - a1)
+		axis = a2 - a1
+		axis_vec = axis.sArray()
+		axis_norm = np.linalg.norm(axis_vec)
+		if axis_norm < 1e-6:
+			self._last_value = None
+			self._last_raw_value = None
+			return None
+		axis_unit = axis_vec / axis_norm
+		# Remove axis component from v1 and v2
+		def project_onto_plane(v, axis_unit):
+			v_vec = v.sArray()
+			return v_vec - np.dot(v_vec, axis_unit) * axis_unit
+		v1_proj = project_onto_plane(v1, axis_unit)
+		v2_proj = project_onto_plane(v2, axis_unit)
+		# Angle between projections
+		dot = np.dot(v1_proj, v2_proj)
+		cross = np.cross(v1_proj, v2_proj)
+		angle = math.atan2(np.dot(cross, axis_unit), dot)
+		self._last_raw_value = angle
+		val = self.normalize_value(angle)
+		self._last_value = val
+		return val
+
+
+class RollRotationFeature(Feature):
+	"""
+	Hand roll around the camera/view vertical: compute palm normal (from WRIST, INDEX_MCP, PINKY_MCP),
+	force it to point upwards, project onto the plane spanned by the index-pinky vector and the up vector,
+	then measure the signed angle to the up vector. Positive sign is consistent across hands.
+	"""
+	def __init__(self, hand: str, calibration: Dict[str, Any]):
+		super().__init__(hand, calibration)
+		# Default roll range about +/- 90 degrees
+		self.min = calibration.get("min", -np.pi/2)
+		self.max = calibration.get("max", np.pi/2)
+
+	def getValue(self, left_hand: Optional[HandState], right_hand: Optional[HandState]) -> Optional[float]:
+		hand = left_hand if self.hand == 'left' else right_hand
+		if hand is None or not hasattr(hand, "landmarks"):
+			self._last_value = None
+			self._last_raw_value = None
+			return None
+
+		lms = hand.landmarks
+		w = lms[HandState.WRIST].sArray()
+		idx = lms[HandState.INDEX_FINGER_MCP].sArray()
+		pky = lms[HandState.PINKY_MCP].sArray()
+
+		# Up vector in screen coords (y up is negative in image space)
+		up = np.array([0.0, 0.0, -1.0], dtype=np.float32)
+		up_norm = np.linalg.norm(up)
+		if up_norm < 1e-6:
+			return None
+		up_u = up / up_norm
+
+		# Palm normal from triangle (wrist, index, pinky)
+		v1 = idx - w
+		v2 = pky - w
+		n = np.cross(v1, v2)
+		n_norm = np.linalg.norm(n)
+		if n_norm < 1e-6:
+			self._last_value = None
+			self._last_raw_value = None
+			return None
+		n_u = n / n_norm
+
+		# Ensure normal points "up" (flip if pointing down)
+		if not getattr(hand, 'label', 'Right').lower().startswith('left'):
+			n_u = -n_u
+
+		# Index-Pinky direction (from pinky to index)
+		ip = idx - pky
+		ip_norm = np.linalg.norm(ip)
+		if ip_norm < 1e-6:
+			self._last_value = None
+			self._last_raw_value = None
+			return None
+		ip_u = ip / ip_norm
+
+		# Plane normal for plane spanned by ip_u and up_u
+		plane_n = np.cross(ip_u, up_u)
+		plane_n_norm = np.linalg.norm(plane_n)
+		if plane_n_norm < 1e-6:
+			self._last_value = None
+			self._last_raw_value = None
+			return None
+		plane_n_u = plane_n / plane_n_norm
+
+		# Project palm normal onto that plane
+		n_proj = n_u - np.dot(n_u, plane_n_u) * plane_n_u
+		n_proj_norm = np.linalg.norm(n_proj)
+		if n_proj_norm < 1e-6:
+			self._last_value = None
+			self._last_raw_value = None
+			return None
+		n_proj_u = n_proj / n_proj_norm
+
+		# Signed angle from up to projected normal within the plane
+		num = np.dot(np.cross(up_u, n_proj_u), plane_n_u)
+		den = float(np.clip(np.dot(up_u, n_proj_u), -1.0, 1.0))
+		angle = math.atan2(num, den)
+
+		# Normalize sign across hands: make left-hand sign match right-hand
+		if getattr(hand, 'label', 'Right').lower().startswith('left'):
+			angle = -angle
+
+		self._last_raw_value = angle
+		val = self.normalize_value(angle)
+		self._last_value = val
+		# Optional debug vectors
+		try:
+			debug_overlay.addVector(lms[HandState.PALM_CENTER], n_u * 0.1, color=(255, 255, 0))
+			debug_overlay.addVector(lms[HandState.PALM_CENTER], n_proj_u * 0.1, color=(0, 255, 255))
+			# Draw up and IP directions for reference
+			debug_overlay.addVector(lms[HandState.PALM_CENTER], up_u * 0.1, color=(0, 255, 0))
+			debug_overlay.addVector(lms[HandState.PALM_CENTER], ip_u * 0.1, color=(255, 0, 255))
+		except Exception:
+			pass
+		return val
 
 class FeatureIndex:
 	"""
 	Manages all features and provides lookup by name.
 	"""
-
 
 	def __init__(self, calibration: Dict[str, Any]):
 		self.features: Dict[str, Feature] = {}
@@ -334,6 +484,7 @@ class FeatureIndex:
 			for name, ids in finger_names:
 				key = f"{hand}.curv.{name}"
 				self.features[key] = CurvatureFeature(hand, ids, calibration.get(f"{hand}.curv.{name}", {}))
+			self.features[f"{hand}.curv.thumb"] = CurvatureFeature(hand, [HandState.THUMB_CMC, HandState.THUMB_MCP, HandState.THUMB_IP, HandState.THUMB_TIP], calibration.get(f"{hand}.curv.thumb", {}))
 
 			# Relative curvature features for each finger (difference to mean of adjacent fingers)
 			rel_refs = {
@@ -384,6 +535,24 @@ class FeatureIndex:
 					key1 = f"{hand}.dist.{name1}.{name2}"
 					key2 = f"{hand}.dist.{name2}.{name1}"
 					self.features[key1] = self.features[key2] = DistanceFeature(hand, id1, id2, calibration.get(key1, {}))
+			self.features[f"{hand}.dist.thumb.hand"] = self.features[f"{hand}.dist.hand.thumb"] = DistanceFeature(hand, HandState.THUMB_IP, HandState.INDEX_FINGER_MCP, calibration.get(f"{hand}.dist.thumb.hand", {}))
+
+			# Rotation feature example (customize ids as needed)
+			rot_key = f"{hand}.rotation"
+			# Roll: palm-normal based roll around vertical
+			roll_feature = RollRotationFeature(hand, calibration.get(f"{hand}.rotation.roll", {}))
+			self.features[f"{hand}.rotation.roll"] = roll_feature
+			# Keep legacy alias to roll
+			self.features[rot_key] = roll_feature
+
+			rot_key = f"{hand}.rotation.pitch"
+			self.features[rot_key] = RotationFeature(
+				hand,
+				HandState.PINKY_MCP,
+				HandState.WRIST,
+				HandState.PALM_CENTER,
+				calibration.get(rot_key, {})
+			)
 
 	def getFeature(self, name: str) -> Optional[Feature]:
 		return self.features.get(name)

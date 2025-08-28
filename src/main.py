@@ -25,7 +25,6 @@ from src.input.tracker import HandTracker
 from src.io.camera import CameraSwitcher
 from src.config import loader as config_loader
 from src.ui.debug_overlay import debug_overlay
-from src.input.geometry import L, add, sub, dot, norm, palm_center, palm_width
 
 
 # -------------------- Paths --------------------

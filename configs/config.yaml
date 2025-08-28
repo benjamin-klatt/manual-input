@@ -1,9 +1,4 @@
 version: 1
-last_camera:
-  backend: any
-  name: ''
-  id: ''
-  index: 0
 smoothing:
   position_ms: 120
   movement_ms: 120
@@ -14,12 +9,12 @@ calibration:
     axis:
     - 0.0
     - -1.0
-    range_norm: -0.2
+    range_norm: -540
   right_hand.motion.left:
     axis:
     - 1.0
     - 0.0
-    range_norm: -0.2
+    range_norm: -960
   right_hand.pos:
     quad:
     - - 0
@@ -31,8 +26,8 @@ calibration:
     - - 0
       - 1
   right_hand.gesture.closed:
-    min: 0.0
-    max: 3.0
+    min: 0.5
+    max: 1.2
   right_hand.curv.diff.index_minus_middle:
     min: -0.2
     max: 0.5
@@ -40,9 +35,6 @@ calibration:
     min: -0.2
     max: 0.5
   hands.distance:
-    min: 0.1
-    max: 0.8
-  hands.distance.thumb.index:
     min: 0.1
     max: 0.8
   right_hand.curv.index.rel:
@@ -60,15 +52,27 @@ calibration:
   right_hand.bend.index:
     min: 0.0
     max: 1.0
+  right_hand.dist.thumb.hand:
+    min: 0.015
+    max: 0.045
+  right_hand.curv.thumb:
+    min: 0.5
+    max: 1.0
+  right_hand.dist.hand.thumb:
+    min: 0.0
+    max: 1.0
+  right_hand.rotation:
+    min: 0.0
+    max: 1.0
 bindings:
 - id: move_x
   actuator: mouse.move.x
   input: right_hand.motion.left
   sensitivity: 1920.0
-  deadzone: 0.01
+  deadzone: 0.001
   gate:
     input: right_hand.gesture.closed
-    op: <
+    op: '>'
     trigger_pct: 0.5
     release_pct: 0.45
     refractory_ms: 120
@@ -82,10 +86,10 @@ bindings:
   actuator: mouse.move.y
   input: right_hand.motion.up
   sensitivity: -1080.0
-  deadzone: 0.01
+  deadzone: 0.001
   gate:
     input: right_hand.gesture.closed
-    op: <
+    op: '>'
     trigger_pct: 0.5
     release_pct: 0.45
     refractory_ms: 120
@@ -104,7 +108,7 @@ bindings:
   refractory_ms: 250
   gate:
     input: right_hand.gesture.closed
-    op: ''
+    op: <
     trigger_pct: 0.5
     release_pct: 0.45
     refractory_ms: 120
@@ -114,3 +118,8 @@ bindings:
   - feature
   - gate
   - actuator
+last_camera:
+  backend: any
+  name: ''
+  id: ''
+  index: 0

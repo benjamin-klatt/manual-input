@@ -17,9 +17,7 @@ class Gate:
     def probe_last_state(self):
         return {
             'state': self.state,
-            'last_value': self._last_value,
-            'last_tracked': self._last_tracked,
-            'last_time': self._last_time
+            'feature': self.input_feature.probe_last_value(),
         }
 
     def getState(self, hand_left, hand_right):
@@ -33,7 +31,7 @@ class Gate:
         try:
             if hasattr(self.input_feature, 'getValue'):
                 val = self.input_feature.getValue(hand_left, hand_right)
-        except Exception:
+        except Exception as e:
             val = None
 
         tracked = val is not None

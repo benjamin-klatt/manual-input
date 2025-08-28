@@ -48,16 +48,15 @@ def finger_curvature_3d(lms, ids):
     """
     if len(ids) < 3:
         return 0.0
-    def L3(p): return np.array([p.x, p.y, p.z], dtype=np.float32)
-    pts = [L3(lms[i]) for i in ids]
+    pts = [lms[i] for i in ids]
     total = 0.0
     for i in range(1, len(pts)-1):
-        a, b, c = pts[i-1], pts[i], pts[i+1]
+        a, b, c = pts[i-1].sArray(), pts[i].sArray(), pts[i+1].sArray()
         v1 = a - b
         v2 = c - b
-        n1 = np.linalg.norm(v1) + 1e-9
-        n2 = np.linalg.norm(v2) + 1e-9
-        cosang = np.dot(v1, v2) / (n1 * n2)
+        n1 = np.linalg.norm(v1)
+        n2 = np.linalg.norm(v2)
+        cosang = np.dot(v1, v2) / (n1 * n2  + 1e-9)
         cosang = np.clip(cosang, -1.0, 1.0)
         angle = np.arccos(cosang)
         total += (np.pi - angle)
@@ -80,12 +79,15 @@ def dot(a, b):
 def norm(a):
     return math.hypot(a[0], a[1]) + 1e-9
 
-def palm_center(lms):
-    pts = [0, 5, 9, 13, 17]
-    s = (0.0, 0.0)
+def palm_center(lms ):
+    pts = [HandState.INDEX_FINGER_MCP, HandState.MIDDLE_FINGER_MCP, HandState.RING_FINGER_MCP, HandState.PINKY_MCP]
+    s = lms[HandState.WRIST].copy()
     for i in pts:
-        s = add(s, L(lms[i]))
-    return (s[0] / len(pts), s[1] / len(pts))
+        s += lms[i]
+    s /= (len(pts) + 1)
+    return s
 
+# Compute palm width (distance between pinky and index MCPs) in world coordinates
 def palm_width(lms):
-    return norm(sub(L(lms[5]), L(lms[17]))) + 1e-9
+    width_vector = lms[HandState.PINKY_MCP] - lms[HandState.INDEX_FINGER_MCP]
+    return math.hypot(width_vector.wx, width_vector.wy, width_vector.wz)

@@ -1,16 +1,6 @@
-# --- BindingIndex ---
-class BindingIndex:
-	def __init__(self, config, feature_index, actuator_builder, gate_builder):
-		self.bindings = []
-		bindings_cfg = config.get('bindings', [])
-		for binding_cfg in bindings_cfg:
-			binding = BindingBuilder.build(binding_cfg, feature_index, actuator_builder, gate_builder)
-			self.bindings.append(binding)
 
-	def update(self, left_hand, right_hand):
-		for binding in self.bindings:
-			binding.update(left_hand, right_hand)
-from typing import TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
 	from src.outputs.actuators import Actuator, EventActuator, DeltaActuator, AbsActuator
 	from src.gate.gate import Gate
@@ -18,9 +8,9 @@ if TYPE_CHECKING:
 
 # --- Binding base classes ---
 class Binding:
-	def __init__(self, feature: 'Feature', gate: 'Gate', actuator: 'Actuator', id=None):
+	def __init__(self, feature: 'Feature', gates: List['Gate'] | 'Gate', actuator: 'Actuator', id=None):
 		self.feature = feature
-		self.gate = gate
+		self.gates = gates if isinstance (gates, list) else [gates]
 		self.actuator = actuator
 		self.id = id
 		self._last_state = None
@@ -30,20 +20,26 @@ class Binding:
 	def probe_last(self):
 		return {
 			'feature': self.feature.probe_last_value() if self.feature else None,
-			'gate': self.gate.probe_last_state() if self.gate else None,
+			'gate': [gate.probe_last_state() for gate in self.gates] if self.gates else None,
 			'actuator': self.actuator.probe_last() if self.actuator else None,
 			'binding_state': self._last_state,
 			'binding_value': self._last_value,
 			'binding_time': self._last_time
 		}
+	def get_gate_state(self, left_hand, right_hand):
+		gate_states = [gate.getState(left_hand, right_hand) for gate in self.gates]
+		for state in gate_states:
+			if not state:
+				return False
+		return True
 
 	def update(self, left_hand, right_hand):
 		raise NotImplementedError
 
 class EventBinding(Binding):
-	def __init__(self, feature: 'Feature', gate: 'Gate', actuator, event_type=None, id=None,
+	def __init__(self, feature: 'Feature', gates: List[Gate], actuator, event_type=None, id=None,
 				 trigger_pct=None, release_pct=None, refractory_ms=None, op=None):
-		super().__init__(feature, gate, actuator, id=id)
+		super().__init__(feature, gates, actuator, id=id)
 		self.event_type = event_type  # e.g., 'down', 'up', etc.
 		self.prev_state = False
 		self._last_transition_time = 0
@@ -56,7 +52,7 @@ class EventBinding(Binding):
 		import time
 		now_ms = int(time.time() * 1000)
 		value = self.feature.getValue(left_hand, right_hand) if self.feature else None
-		gate_state = self.gate.getState(left_hand, right_hand) if self.gate else True
+		gate_state = self.get_gate_state(left_hand, right_hand)
 		# Use only config or defaults for thresholds and op
 		trigger_pct = self._custom_trigger_pct if self._custom_trigger_pct is not None else 0.5
 		release_pct = self._custom_release_pct if self._custom_release_pct is not None else 0.45
@@ -103,11 +99,12 @@ class DeltaBinding(Binding):
 		self.deadzone = deadzone
 
 	def update(self, left_hand, right_hand):
-		if not self.gate.getState(left_hand, right_hand):
+		value = self.feature.getValue(left_hand, right_hand)
+		gate_state = self.get_gate_state(left_hand, right_hand)
+		if not gate_state:
 			self._last_state = False
 			self._last_value = None
 			return
-		value = self.feature.getValue(left_hand, right_hand)
 		if value is None:
 			self._last_state = True
 			self._last_value = None
@@ -125,7 +122,8 @@ class AbsBinding(Binding):
 		self.max_value = max_value
 
 	def update(self, left_hand, right_hand):
-		if not self.gate.getState(left_hand, right_hand):
+		gate_state = self.get_gate_state(left_hand, right_hand)
+		if not gate_state:
 			self._last_state = False
 			self._last_value = None
 			return
@@ -167,8 +165,11 @@ class BindingBuilder:
 		feature = feature_index.getFeature(feature_name)
 
 		# Gate (optional)
-		gate_cfg = config.get('gate')
-		gate = gate_builder.build(gate_cfg)
+		gates_cfg = config.get('gate_all')
+		if(not gates_cfg):
+			gate_cfg =config.get('gate')
+			gates_cfg = [gate_cfg]
+		gates = [gate_builder.build(gate_cfg) for gate_cfg in gates_cfg]
 
 		# Parameters for delta/abs
 		scale = config.get('sensitivity', config.get('scale', 1.0))
@@ -179,7 +180,7 @@ class BindingBuilder:
 		id_val = config.get('id')
 		if kind == 'event':
 			return EventBinding(
-				feature, gate, actuator,
+				feature, gates, actuator,
 				event_type=config.get('event_type'),
 				id=id_val,
 				trigger_pct=config.get('trigger_pct'),
@@ -189,14 +190,14 @@ class BindingBuilder:
 			)
 		elif kind == 'delta':
 			return DeltaBinding(
-				feature, gate, actuator,
+				feature, gates, actuator,
 				scale=scale,
 				deadzone=deadzone,
 				id=id_val
 			)
 		elif kind == 'abs':
 			return AbsBinding(
-				feature, gate, actuator,
+				feature, gates, actuator,
 				min_value=min_value,
 				max_value=max_value,
 				id=id_val
@@ -205,3 +206,15 @@ class BindingBuilder:
 			raise ValueError(f"Unknown binding type: {kind}")
 
 
+# --- BindingIndex ---
+class BindingIndex:
+	def __init__(self, config, feature_index, actuator_builder, gate_builder):
+		self.bindings = []
+		bindings_cfg = config.get('bindings', [])
+		for binding_cfg in bindings_cfg:
+			binding = BindingBuilder.build(binding_cfg, feature_index, actuator_builder, gate_builder)
+			self.bindings.append(binding)
+
+	def update(self, left_hand, right_hand):
+		for binding in self.bindings:
+			binding.update(left_hand, right_hand)
