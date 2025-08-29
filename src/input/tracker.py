@@ -24,6 +24,7 @@ RunningMode = vision.RunningMode
 MPImage = mp.Image
 
 
+Z_AMPLIFICATION = 1.5
 
 class MultiLandmark(NormalizedLandmark):
     def __init__(self, lm: NormalizedLandmark, wlm: Landmark,  frame_shape):
@@ -78,19 +79,47 @@ class MultiLandmark(NormalizedLandmark):
         )
     
     def __add__(self, o):
-        if(isinstance(o, MultiLandmark)):
+        # MultiLandmark + MultiLandmark
+        if isinstance(o, MultiLandmark):
             return MultiLandmark(
                 NormalizedLandmark(self.x + o.x, self.y + o.y, self.z + o.z, self.visibility, self.presence),
                 Landmark(self.wlm.x + o.wlm.x, self.wlm.y + o.wlm.y, self.wlm.z + o.wlm.z, self.wlm.visibility, self.wlm.presence ),
                 self.frame_shape
             )
+        # MultiLandmark + np.array or tuple/list
+        arr = None
+        if isinstance(o, np.ndarray) and o.shape == (3,):
+            arr = o
+        elif isinstance(o, (tuple, list)) and len(o) == 3:
+            arr = np.array(o)
+        if arr is not None:
+            return MultiLandmark(
+                NormalizedLandmark(self.x + arr[0], self.y + arr[1], self.z + arr[2], self.visibility, self.presence),
+                Landmark(self.wlm.x + arr[0], self.wlm.y + arr[1], self.wlm.z + arr[2], self.wlm.visibility, self.wlm.presence ),
+                self.frame_shape
+            )
+        return NotImplemented
     def __sub__(self, o):
-        if(isinstance(o, MultiLandmark)):
+        # MultiLandmark - MultiLandmark
+        if isinstance(o, MultiLandmark):
             return MultiLandmark(
                 NormalizedLandmark(self.x - o.x, self.y - o.y, self.z - o.z, self.visibility, self.presence),
                 Landmark(self.wlm.x - o.wlm.x, self.wlm.y - o.wlm.y, self.wlm.z - o.wlm.z, self.wlm.visibility, self.wlm.presence ),
                 self.frame_shape
             )
+        # MultiLandmark - np.array or tuple/list
+        arr = None
+        if isinstance(o, np.ndarray) and o.shape == (3,):
+            arr = o
+        elif isinstance(o, (tuple, list)) and len(o) == 3:
+            arr = np.array(o)
+        if arr is not None:
+            return MultiLandmark(
+                NormalizedLandmark(self.x - arr[0], self.y - arr[1], self.z - arr[2], self.visibility, self.presence),
+                Landmark(self.wlm.x - arr[0], self.wlm.y - arr[1], self.wlm.z - arr[2], self.wlm.visibility, self.wlm.presence ),
+                self.frame_shape
+            )
+        return NotImplemented
     def __mul__(self, o):
         # check if number
         try:
@@ -116,7 +145,7 @@ class MultiLandmark(NormalizedLandmark):
             pass
 
     def __iadd__(self, o):
-        if(isinstance(o, MultiLandmark)):
+        if isinstance(o, MultiLandmark):
             self.x += o.x
             self.y += o.y
             self.z += o.z
@@ -130,8 +159,28 @@ class MultiLandmark(NormalizedLandmark):
             self.wy = self.wlm.y
             self.wz = self.wlm.z
             return self
+        arr = None
+        if isinstance(o, np.ndarray) and o.shape == (3,):
+            arr = o
+        elif isinstance(o, (tuple, list)) and len(o) == 3:
+            arr = np.array(o)
+        if arr is not None:
+            self.x += arr[0]
+            self.y += arr[1]
+            self.z += arr[2]
+            self.sx += arr[0]
+            self.sy += arr[1]
+            self.sz += arr[2]
+            self.wlm.x += arr[0]
+            self.wlm.y += arr[1]
+            self.wlm.z += arr[2]
+            self.wx = self.wlm.x
+            self.wy = self.wlm.y
+            self.wz = self.wlm.z
+            return self
+        return NotImplemented
     def __isub__(self, o):
-        if(isinstance(o, MultiLandmark)):
+        if isinstance(o, MultiLandmark):
             self.x -= o.x
             self.y -= o.y
             self.z -= o.z
@@ -145,6 +194,26 @@ class MultiLandmark(NormalizedLandmark):
             self.wy = self.wlm.y
             self.wz = self.wlm.z
             return self
+        arr = None
+        if isinstance(o, np.ndarray) and o.shape == (3,):
+            arr = o
+        elif isinstance(o, (tuple, list)) and len(o) == 3:
+            arr = np.array(o)
+        if arr is not None:
+            self.x -= arr[0]
+            self.y -= arr[1]
+            self.z -= arr[2]
+            self.sx -= arr[0]
+            self.sy -= arr[1]
+            self.sz -= arr[2]
+            self.wlm.x -= arr[0]
+            self.wlm.y -= arr[1]
+            self.wlm.z -= arr[2]
+            self.wx = self.wlm.x
+            self.wy = self.wlm.y
+            self.wz = self.wlm.z
+            return self
+        return NotImplemented
     def __imul__(self, o):
         # check if number
         try:
@@ -209,6 +278,8 @@ class HandTracker:
             lms = []
             for i, lm in enumerate(nlms):
                 wlm = wlms[i]
+                lm.z *= Z_AMPLIFICATION
+                wlm.z *= Z_AMPLIFICATION
                 lms.append(MultiLandmark(lm, wlm, rgb_frame.shape))
             lms.append(palm_center(lms))  # add palm center as extra landmark
             pw = palm_width(lms)

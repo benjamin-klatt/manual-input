@@ -15,6 +15,8 @@ class DebugOverlay:
 
     def _to_xyz(self, v):
         # Accepts (x, y, z) tuple or NormalizedLandmark
+        # if hasattr(v, 'wx') and hasattr(v, 'wy') and hasattr(v, 'wz'):
+        #     return (float(v.wx), float(v.wy), float(v.wz))
         if hasattr(v, 'x') and hasattr(v, 'y') and hasattr(v, 'z'):
             return (float(v.x), float(v.y), float(v.z))
         if isinstance(v, (tuple, list)) and len(v) == 3:
@@ -23,15 +25,11 @@ class DebugOverlay:
             return (float(v[0]), float(v[1]), float(v[2]))
         raise ValueError(f"Cannot convert {v} to (x, y, z)")
 
-    def addPoint(self, x, y=None, z=None, color=(0,255,0)):
+    def addPoint(self, p,  color=(0,255,0)):
         # Accepts (x, y, z) or NormalizedLandmark as first arg
-        if y is None and z is None:
-            x, y, z = self._to_xyz(x)
-        self.points.append((x, y, z, color))
+        self.points.append((p, color))
 
     def addLine(self, p1, p2, color=(255,0,0)):
-        p1 = self._to_xyz(p1)
-        p2 = self._to_xyz(p2)
         self.lines.append((p1, p2, color))
 
     def addVector(self, origin, direction, color=(0,0,255)):
@@ -46,9 +44,10 @@ class DebugOverlay:
             return
         lms = hand.landmarks
         for lm in lms:
-            self.addPoint(lm.x, lm.y, lm.z, color)
+            self.addPoint(lm, color)
 
         self.addLine(lms[HandState.WRIST], lms[HandState.INDEX_FINGER_MCP], color)
+        self.addLine(lms[HandState.THUMB_CMC], lms[HandState.INDEX_FINGER_MCP], color)
         self.addLine(lms[HandState.INDEX_FINGER_MCP], lms[HandState.MIDDLE_FINGER_MCP], color)
         self.addLine(lms[HandState.MIDDLE_FINGER_MCP], lms[HandState.RING_FINGER_MCP], color)
         self.addLine(lms[HandState.RING_FINGER_MCP], lms[HandState.PINKY_MCP], color)
@@ -83,11 +82,12 @@ class DebugOverlay:
 
     def render(self, frame):
         # Example: project 3D to 2D (requires camera intrinsics, here just drop z for demo)
-        for (x, y, z, color) in self.points:
+        for (p, color) in self.points:
+            x, y, z = p.nTuple()
             cv2.circle(frame, (int(x * frame.shape[1]), int(y * frame.shape[0])), 6, color, -1)
         for (p1, p2, color) in self.lines:
-            x1, y1, z1 = p1
-            x2, y2, z2 = p2
+            x1, y1, z1 = p1.nTuple()
+            x2, y2, z2 = p2.nTuple()
             cv2.line(frame, (int(x1 * frame.shape[1]), int(y1 * frame.shape[0])), (int(x2 * frame.shape[1]), int(y2 * frame.shape[0])), color, 2)
         for (origin, direction, color) in self.vectors:
             x, y, z = origin
@@ -95,6 +95,24 @@ class DebugOverlay:
             tip_x = x+dx 
             tip_y = y+dy
             cv2.arrowedLine(frame, (int(x * frame.shape[1]), int(y * frame.shape[0])), (int(tip_x * frame.shape[1]), int(tip_y * frame.shape[0])), color, 2, tipLength=0.2)
+
+
+        for (p, color) in self.points:
+            x, y, z = (p + (0.25, 0.25, 0.25)).wTuple()
+            cv2.circle(frame, (int(x * frame.shape[1]), int(y * frame.shape[0])), 6, color, -1)
+        for (p1, p2, color) in self.lines:
+            x1, y1, z1 = (p1 + (0.25, 0.25, 0.25)).wTuple()
+            x2, y2, z2 = (p2 + (0.25, 0.25, 0.25)).wTuple()
+            cv2.line(frame, (int(x1 * frame.shape[1]), int(y1 * frame.shape[0])), (int(x2 * frame.shape[1]), int(y2 * frame.shape[0])), color, 2)
+
+        for (p, color) in self.points:
+            x, y, z = (p + (0.75, 0.75, 0.75)).wTuple()
+            cv2.circle(frame, (int(y * frame.shape[1]), int(z * frame.shape[0])), 6, color, -1)
+        for (p1, p2, color) in self.lines:
+            x1, y1, z1 = (p1 + (0.75, 0.75, 0.75)).wTuple()
+            x2, y2, z2 = (p2 + (0.75, 0.75, 0.75)).wTuple()
+            cv2.line(frame, (int(y1 * frame.shape[1]), int(z1 * frame.shape[0])), (int(y2 * frame.shape[1]), int(z2 * frame.shape[0])), color, 2)
+
 
 # Global instance for universal access
 debug_overlay = DebugOverlay()

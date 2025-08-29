@@ -1,20 +1,22 @@
 version: 1
 smoothing:
+  hand_ms: 120
   position_ms: 120
   movement_ms: 120
   curvature_ms: 80
   gesture_ms: 80
+# --- Calibration settings ---
 calibration:
   right_hand.motion.up:
     axis:
     - 0.0
     - -1.0
-    range_norm: -200 # this is the right hand motion up calibration
+    range_norm: -200 # <--- SENSITIVITY for up/down (adjust here), smaller = faster
   right_hand.motion.left:
     axis:
     - 1.0
     - 0.0
-    range_norm: -300 # this is the right hand motion left calibration
+    range_norm: -300 # <--- SENSITIVITY for left/right (adjust here), smaller = faster
   right_hand.pos:
     quad:
     - [0, 0]
@@ -22,17 +24,21 @@ calibration:
     - [1, 1]
     - [0, 1]
   right_hand.gesture.closed:
-    min: 0.5
-    max: 1.2
+    min: 0.5   # <--- GESTURE THRESHOLDS: set min to your open hand raw value
+    max: 1.2   # <--- set max to your closed hand raw value
+  right_hand.curv.index:
+    min: 0
+    max: 1
 bindings:
+# --- Bindings (actions) ---
 - id: move_x
   actuator: mouse.move.x
   input: right_hand.motion.left
   sensitivity: 1920.0
-  deadzone: 0.001
+  deadzone: 0.001   # <--- DEADZONE: minimum movement to trigger (lower = more sensitive, higher = less jitter)
   gate:
     input: right_hand.gesture.closed
-    op: '<'
+    op: '<'         # <--- GATE OP: use '<' or '>' to invert gesture logic
     trigger_pct: 0.5
     release_pct: 0.45
     refractory_ms: 120
@@ -46,10 +52,10 @@ bindings:
   actuator: mouse.move.y
   input: right_hand.motion.up
   sensitivity: -1080.0
-  deadzone: 0.001
+  deadzone: 0.001   # <--- DEADZONE: minimum movement to trigger (lower = more sensitive, higher = less jitter)
   gate:
     input: right_hand.gesture.closed
-    op: '<'
+    op: '<'         # <--- GATE OP: use '<' or '>' to invert gesture logic
     trigger_pct: 0.5
     release_pct: 0.45
     refractory_ms: 120
@@ -59,6 +65,15 @@ bindings:
   - feature
   - gate
   - actuator
+
+- id: move_y
+  actuator: mouse.click.left
+  input: right_hand.curv.index
+  op: '>'
+  trigger_pct: 0.8
+  release_pct: 0.6
+  refractory_ms: 250
+  lost_hand_policy: release
 last_camera:
   backend: any
   name: ''

@@ -1,3 +1,8 @@
+
+from pynput.mouse import Controller as MouseController, Button
+from pynput.keyboard import Controller as KeyboardController, Key
+from .mouse import mouse_out
+
 # --- ActuatorPair for event actuators ---
 class ActuatorPair:
     def __init__(self, trigger_actuator, release_actuator=None):
@@ -15,8 +20,6 @@ class ActuatorPair:
         elif event_type == 'up' or event_type == 'release':
             if self.release_actuator:
                 self.release_actuator.trigger()
-from pynput.mouse import Controller as MouseController, Button
-from pynput.keyboard import Controller as KeyboardController, Key
 
 # --- Actuator base classes ---
 class Actuator:
@@ -53,54 +56,54 @@ class AbsActuator(Actuator):
 class MouseMoveDeltaActuator(DeltaActuator):
     def __init__(self, axis):
         super().__init__(axis)
-        self.mouse = MouseController()
+        self.mouse = mouse_out
         self.axis = axis  # 'x' or 'y'
     def trigger(self, value):
         import time
         self._last_trigger_time = time.time()
         self._last_value = value
         if self.axis == 'x':
-            self.mouse.move(int(value), 0)
+            self.mouse.move_dx(value)
         elif self.axis == 'y':
-            self.mouse.move(0, int(value))
+            self.mouse.move_dy(value)
 
 class MouseScrollDeltaActuator(DeltaActuator):
     def __init__(self, axis):
         super().__init__(axis)
-        self.mouse = MouseController()
+        self.mouse = mouse_out
         self.axis = axis  # 'x' or 'y'
     def trigger(self, value):
         import time
         self._last_trigger_time = time.time()
         self._last_value = value
         if self.axis == 'x':
-            self.mouse.scroll(int(value), 0)
+            self.mouse.scroll(value, 0)
         elif self.axis == 'y':
-            self.mouse.scroll(0, int(value))
+            self.mouse.scroll(0, value)
 
 class MouseAbsActuator(AbsActuator):
     def __init__(self, axis):
         super().__init__(axis)
-        self.mouse = MouseController()
+        self.mouse = mouse_out
         self.axis = axis  # 'x' or 'y'
     def trigger(self, value):
         import time
         self._last_trigger_time = time.time()
         self._last_value = value
-        # NOTE: pynput does not support absolute positioning; this is a placeholder
+        # NOTE: MouseOut does not support absolute positioning; this is a placeholder
         pass
 
 class MouseButtonEventActuator(EventActuator):
     def __init__(self, button, event):
         super().__init__((button, event))
-        self.mouse = MouseController()
+        self.mouse = mouse_out
         self.button = button  # Button.left, Button.right, etc.
         self.event = event    # 'down' or 'up'
     def trigger(self):
         if self.event == 'down':
-            self.mouse.press(self.button)
+            self.mouse.down(self.button)
         elif self.event == 'up':
-            self.mouse.release(self.button)
+            self.mouse.up(self.button)
 
 # --- Keyboard actuators ---
 class KeyboardKeyEventActuator(EventActuator):
@@ -167,34 +170,20 @@ class ActuatorBuilder:
         if key == 'mouse.scroll.y':
             return MouseScrollDeltaActuator('y')
         # Mouse button events (down/up)
-        if key == 'mouse.click.left.down':
-            return MouseButtonEventActuator(Button.left, 'down')
-        if key == 'mouse.click.left.up':
-            return MouseButtonEventActuator(Button.left, 'up')
-        if key == 'mouse.click.right.down':
-            return MouseButtonEventActuator(Button.right, 'down')
-        if key == 'mouse.click.right.up':
-            return MouseButtonEventActuator(Button.right, 'up')
-        if key == 'mouse.click.middle.down':
-            return MouseButtonEventActuator(Button.middle, 'down')
-        if key == 'mouse.click.middle.up':
-            return MouseButtonEventActuator(Button.middle, 'up')
+        import re
+        m_event = re.match(r"mouse\.click\.(\w+)\.(down|up)$", key)
+        if m_event:
+            btn = m_event.group(1)
+            action = m_event.group(2)
+            return MouseButtonEventActuator(btn, action)
 
         # Mouse button ActuatorPair for generic mouse.click.*
-        if key == 'mouse.click.left':
+        m_pair = re.match(r"mouse\.click\.(\w+)$", key)
+        if m_pair:
+            btn = m_pair.group(1)
             return ActuatorPair(
-                MouseButtonEventActuator(Button.left, 'down'),
-                MouseButtonEventActuator(Button.left, 'up')
-            )
-        if key == 'mouse.click.right':
-            return ActuatorPair(
-                MouseButtonEventActuator(Button.right, 'down'),
-                MouseButtonEventActuator(Button.right, 'up')
-            )
-        if key == 'mouse.click.middle':
-            return ActuatorPair(
-                MouseButtonEventActuator(Button.middle, 'down'),
-                MouseButtonEventActuator(Button.middle, 'up')
+                MouseButtonEventActuator(btn, 'down'),
+                MouseButtonEventActuator(btn, 'up')
             )
 
         # Keyboard key events (down/up)

@@ -147,7 +147,7 @@ def main():
 
     # Tracker
     tracker = HandTracker(model_path)
-    smoother = HandSmootherIndex(smoothing_time=0.12)
+    smoother = HandSmootherIndex(smoothing_time=cfg.get("smoothing", {}).get("hand_ms", 120)/1000.0)
 
 
     # --- Modular pipeline: FeatureIndex, ActuatorBuilder, GateBuilder, BindingIndex ---

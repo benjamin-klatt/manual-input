@@ -3,3 +3,5 @@ opencv-python
 pynput
 pyyaml
 ruamel.yaml
+python-uinput; sys_platform == "linux"
+pyobjc-framework-Quartz; sys_platform == "darwin"
